@@ -70,7 +70,7 @@ Portrait orientation mode does not currently work correctly. The video display a
 
 - **iPad** (iPad mini 6 recommended for best performance)
 - **iOS/iPadOS 16.6+**
-- **Android phone** running [Headunit Reloaded](https://github.com/andreknieriem/headunit-revived)
+- **Android phone** running Android Auto Server from the dev option
 - **WiFi network** (both devices on same network)
 
 ## Installation
