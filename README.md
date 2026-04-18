@@ -135,7 +135,7 @@ This project is for educational and personal use only. Android Auto is a tradema
 
 ## License
 
-MIT License - See LICENSE file for details.
+AGPL-v3 - See LICENSE file for details.
 
 ---
 
