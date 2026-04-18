@@ -122,7 +122,7 @@ This project is for educational and personal use only. Android Auto is a tradema
 
 ### Special Thanks
 
-- **Andre Knieriem** - Developer of [Headunit Reloaded](https://github.com/andreknieriem/headunit-revived), the Android Auto Server application that makes this project possible
+- **Andre Knieriem** - Developer of [Headunit Revived](https://github.com/andreknieriem/headunit-revived), the Android Auto Server application that makes this project possible
 
 ### Inspiration
 
@@ -139,4 +139,4 @@ AGPL-v3 - See LICENSE file for details.
 
 ---
 
-**If you find this project useful, consider supporting the developers of Headunit Reloaded who make this ecosystem possible.**
+**If you find this project useful, consider supporting the developers of Headunit Revived who make this ecosystem possible.**
