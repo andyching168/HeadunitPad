@@ -70,7 +70,7 @@ Portrait orientation mode does not currently work correctly. The video display a
 
 - **iPad** (iPad mini 6 recommended for best performance)
 - **iOS/iPadOS 16.6+**
-- **Android phone** running [Headunit Reloaded](https://github.com/rindeal/HeadunitReloaded)
+- **Android phone** running [Headunit Reloaded](https://github.com/andreknieriem/headunit-revived)
 - **WiFi network** (both devices on same network)
 
 ## Installation
@@ -122,11 +122,11 @@ This project is for educational and personal use only. Android Auto is a tradema
 
 ### Special Thanks
 
-- **Rindeal** - Developer of [Headunit Reloaded](https://github.com/rindeal/HeadunitReloaded), the Android Auto Server application that makes this project possible
+- **Andre Knieriem** - Developer of [Headunit Reloaded](https://github.com/andreknieriem/headunit-revived), the Android Auto Server application that makes this project possible
 
 ### Inspiration
 
-- **Mike Reid** - Original [Headunit](https://github.com/nicknds/Headunit) developer. His pioneering work on the Android Auto protocol laid the foundation for all subsequent projects in this space. Mike passed away; his contributions to the open-source community will be remembered.
+- **Mike Reid** - Original [Headunit](https://github.com/mikereidis/headunit) developer. His pioneering work on the Android Auto protocol laid the foundation for all subsequent projects in this space. Mike passed away; his contributions to the open-source community will be remembered.
 
 ### Open Source Libraries
 
