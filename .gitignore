@@ -1,0 +1,63 @@
+# Xcode
+build/
+DerivedData/
+*.pbxuser
+*.xcuserdatad
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcworkspace/xcshareddata/xcschemes/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Swift Package Manager
+.swiftpm/
+*.xcconfig
+Package.resolved
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+.env
+.env.local
+
+# Build artifacts
+*.app
+*.dSYM
+*.ipa
+*.xcarchive
+
+# Test files
+*.xctest
+coverage/
+
+# Dependencies
+.build/
+dist/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Xcode legacy build artifacts
+**/DerivedData/**
+**/build/**
+
+# Certificates and private keys
+*.p12
+*.cer
+*.key

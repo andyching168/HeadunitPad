@@ -15,11 +15,30 @@
 					<string>Default Configuration</string>
 					<key>UISceneDelegateClassName</key>
 					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
-					<key>UISceneStoryboardFile</key>
-					<string>Main</string>
 				</dict>
 			</array>
 		</dict>
 	</dict>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>HeadunitPad needs to discover Android Auto devices on your local network.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>HeadunitPad needs microphone access for Android Auto voice input.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>HeadunitPad needs location access when using iPad GPS for Android Auto navigation.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_androidauto._tcp</string>
+	</array>
 </dict>
 </plist>
