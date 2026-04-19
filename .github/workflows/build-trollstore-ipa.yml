@@ -22,9 +22,9 @@ jobs:
         run: |
           #  請將下方的 "YourProject.xcodeproj" 與 "YourScheme" 替換成你實際的名稱
           # 如果你是使用 CocoaPods，請將 -project 改為 -workspace "YourWorkspace.xcworkspace"
-          
+          pod install
           xcodebuild clean build \
-            -project "HeadunitPad.xcodeproj" \
+            -workspace "HeadunitPad.xcworkspace" \
             -scheme "HeadunitPad" \
             -configuration Release \
             -sdk iphoneos \
