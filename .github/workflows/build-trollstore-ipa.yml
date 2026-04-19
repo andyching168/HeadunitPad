@@ -1,0 +1,52 @@
+name: Build TrollStore IPA
+
+# 設定觸發條件：允許在 GitHub 網頁上手動點擊執行
+on:
+  workflow_dispatch: 
+
+jobs:
+  build:
+    name: Build and Package IPA
+    runs-on: macos-latest # 使用 GitHub 提供的 macOS 虛擬機
+
+    steps:
+      - name:  取得程式碼 (Checkout)
+        uses: actions/checkout@v4
+
+      - name:  設定 Xcode 版本 (可選)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name:  編譯專案 (無簽名模式)
+        run: |
+          #  請將下方的 "YourProject.xcodeproj" 與 "YourScheme" 替換成你實際的名稱
+          # 如果你是使用 CocoaPods，請將 -project 改為 -workspace "YourWorkspace.xcworkspace"
+          
+          xcodebuild clean build \
+            -project "HeadunitPad.xcodeproj" \
+            -scheme "HeadunitPad" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name:  打包成 TrollStore 專用 IPA
+        run: |
+          # 建立 Payload 資料夾
+          mkdir Payload
+          
+          # 將編譯好的 .app 複製到 Payload 資料夾內
+          # 這裡用 *.app 可以自動抓取編譯出來的應用程式
+          cp -r build/Build/Products/Release-iphoneos/*.app Payload/
+          
+          # 壓縮成 .ipa 檔案
+          zip -r AppForTrollStore.ipa Payload
+
+      - name:  上傳 IPA 檔案供下載
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrollStore-IPA
+          path: AppForTrollStore.ipa
