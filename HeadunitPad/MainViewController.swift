@@ -17,6 +17,11 @@ class MainViewController: UIViewController {
     private let videoRenderer = H264VideoRendererView()
     private let audioPlayer = PCMAudioPlayer()
     private let locationPermissionManager = CLLocationManager()
+    private var videoWatchdogTimer: Timer?
+    private var runningSinceTs: TimeInterval = 0
+    private var lastVideoFrameTs: TimeInterval = 0
+    private var hasReceivedFirstVideoFrame = false
+    private var lastVideoRecoveryTs: TimeInterval = 0
 
     // MARK: - UI Components
 
@@ -163,7 +168,7 @@ class MainViewController: UIViewController {
 
     private func applyOrientationLock() {
         setNeedsUpdateOfSupportedInterfaceOrientations()
-        touchOverlayView.isMultipleTouchEnabled = (ProjectionSettings.orientation == .landscape)
+        touchOverlayView.isMultipleTouchEnabled = true
 
         let targetMask = supportedInterfaceOrientations
         if #available(iOS 16.0, *) {
@@ -290,6 +295,7 @@ class MainViewController: UIViewController {
     private func updateUIForConnectionState(_ state: ConnectionState) {
         switch state {
         case .disconnected:
+            stopVideoWatchdog()
             videoContainerView.isHidden = true
             videoRenderer.reset()
             audioPlayer.reset()
@@ -306,6 +312,7 @@ class MainViewController: UIViewController {
             activityIndicator.stopAnimating()
 
         case .discovering:
+            stopVideoWatchdog()
             videoContainerView.isHidden = true
             settingsButton.isHidden = false
             titleLabel.isHidden = false
@@ -319,6 +326,7 @@ class MainViewController: UIViewController {
             activityIndicator.startAnimating()
 
         case .connecting:
+            stopVideoWatchdog()
             videoContainerView.isHidden = true
             settingsButton.isHidden = false
             titleLabel.isHidden = false
@@ -332,6 +340,7 @@ class MainViewController: UIViewController {
             activityIndicator.startAnimating()
 
         case .handshaking:
+            stopVideoWatchdog()
             videoContainerView.isHidden = true
             settingsButton.isHidden = false
             titleLabel.isHidden = false
@@ -345,6 +354,7 @@ class MainViewController: UIViewController {
             activityIndicator.startAnimating()
 
         case .running:
+            startVideoWatchdog()
             videoContainerView.isHidden = false
             settingsButton.isHidden = false
             titleLabel.isHidden = true
@@ -358,6 +368,7 @@ class MainViewController: UIViewController {
             activityIndicator.stopAnimating()
 
         case .error(let message):
+            stopVideoWatchdog()
             videoContainerView.isHidden = true
             audioPlayer.reset()
             settingsButton.isHidden = false
@@ -371,6 +382,52 @@ class MainViewController: UIViewController {
             manualIPButton.isHidden = false
             disconnectButton.isHidden = true
             activityIndicator.stopAnimating()
+        }
+    }
+
+    private func startVideoWatchdog() {
+        if videoWatchdogTimer != nil {
+            return
+        }
+
+        runningSinceTs = Date().timeIntervalSince1970
+        lastVideoFrameTs = 0
+        hasReceivedFirstVideoFrame = false
+        lastVideoRecoveryTs = 0
+
+        videoWatchdogTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.checkVideoWatchdog()
+        }
+    }
+
+    private func stopVideoWatchdog() {
+        videoWatchdogTimer?.invalidate()
+        videoWatchdogTimer = nil
+        runningSinceTs = 0
+        lastVideoFrameTs = 0
+        hasReceivedFirstVideoFrame = false
+        lastVideoRecoveryTs = 0
+    }
+
+    private func checkVideoWatchdog() {
+        guard connectionManager.state == .running else {
+            return
+        }
+
+        let now = Date().timeIntervalSince1970
+        if !hasReceivedFirstVideoFrame {
+            if now - runningSinceTs > 3.0, now - lastVideoRecoveryTs > 1.5 {
+                lastVideoRecoveryTs = now
+                print("MainViewController: Video watchdog requesting first-frame recovery")
+                connectionManager.requestVideoRecovery()
+            }
+            return
+        }
+
+        if now - lastVideoFrameTs > 6.0, now - lastVideoRecoveryTs > 2.0 {
+            lastVideoRecoveryTs = now
+            print("MainViewController: Video watchdog detected frame stall, requesting recovery")
+            connectionManager.requestVideoRecovery()
         }
     }
 
@@ -667,7 +724,12 @@ extension MainViewController: ConnectionManagerDelegate {
     }
 
     func connectionManager(_ manager: ConnectionManager, didReceiveVideoData data: Data) {
-        videoRenderer.enqueueAnnexBFrame(data)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.hasReceivedFirstVideoFrame = true
+            self.lastVideoFrameTs = Date().timeIntervalSince1970
+            self.videoRenderer.enqueueAnnexBFrame(data)
+        }
     }
 
     func connectionManager(_ manager: ConnectionManager, didReceiveAudioData data: Data, on channel: UInt8) {

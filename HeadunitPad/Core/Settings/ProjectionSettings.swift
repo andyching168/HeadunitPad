@@ -6,6 +6,8 @@ enum ProjectionVideoResolution: Int {
     case r800x480 = 1
     case r1280x720 = 2
     case r1920x1080 = 3
+    case r768x1024 = 4
+    case r1200x1600 = 5
 
     func title(for orientation: ProjectionOrientation) -> String {
         let size = dimensions(for: orientation)
@@ -22,13 +24,23 @@ enum ProjectionVideoResolution: Int {
                 return (1280, 720)
             case .r1920x1080:
                 return (1920, 1080)
+            case .r768x1024:
+                return (768, 1024)
+            case .r1200x1600:
+                return (1200, 1600)
             }
         case .portrait:
             switch self {
-            case .r800x480, .r1280x720:
+            case .r800x480:
+                return (480, 800)
+            case .r1280x720:
                 return (720, 1280)
             case .r1920x1080:
                 return (1080, 1920)
+            case .r768x1024:
+                return (768, 1024)
+            case .r1200x1600:
+                return (1200, 1600)
             }
         }
     }
@@ -40,9 +52,13 @@ enum ProjectionVideoResolution: Int {
         case .portrait:
             switch self {
             case .r800x480, .r1280x720:
-                return 6   // _720x1280
+                return 6
             case .r1920x1080:
-                return 7   // _1080x1920
+                return 7
+            case .r768x1024:
+                return 8
+            case .r1200x1600:
+                return 9
             }
         }
     }
@@ -98,6 +114,7 @@ enum ProjectionSettings {
     private static let orientationKey = "projection-orientation"
     private static let dpiKey = "projection-dpi"
     private static var cachedCellularSupport: Bool?
+    private static let portraitCompatibilityResolution: ProjectionVideoResolution = .r1920x1080
     static let defaultDpi = 160
     static let minDpi = 80
     static let maxDpi = 640
@@ -106,7 +123,13 @@ enum ProjectionSettings {
     static var videoResolution: ProjectionVideoResolution {
         get {
             let value = defaults.integer(forKey: videoResolutionKey)
-            return ProjectionVideoResolution(rawValue: value) ?? .r1280x720
+            if let resolution = ProjectionVideoResolution(rawValue: value) {
+                return resolution
+            }
+            if orientation == .portrait {
+                return .r768x1024
+            }
+            return .r1280x720
         }
         set {
             defaults.set(newValue.rawValue, forKey: videoResolutionKey)
@@ -120,8 +143,11 @@ enum ProjectionSettings {
         }
         set {
             defaults.set(newValue.rawValue, forKey: orientationKey)
-            if newValue == .portrait && videoResolution == .r800x480 {
-                videoResolution = .r1280x720
+            if newValue == .portrait {
+                let currentRes = videoResolution
+                if currentRes == .r800x480 {
+                    videoResolution = .r768x1024
+                }
             }
         }
     }
@@ -146,17 +172,23 @@ enum ProjectionSettings {
     static func availableResolutions(for orientation: ProjectionOrientation) -> [ProjectionVideoResolution] {
         switch orientation {
         case .landscape:
-            return [.r800x480, .r1280x720, .r1920x1080]
+            return [.r800x480, .r1280x720, .r1920x1080, .r768x1024]
         case .portrait:
-            return [.r1280x720, .r1920x1080]
+            return [.r768x1024, .r1200x1600, .r1280x720, .r1920x1080]
         }
     }
 
     static var effectiveVideoCodecResolutionValue: Int {
+        if orientation == .portrait {
+            return portraitCompatibilityResolution.codecResolutionValue(for: .portrait)
+        }
         return videoResolution.codecResolutionValue(for: orientation)
     }
 
     static var effectiveVideoDimensions: (width: Int, height: Int) {
+        if orientation == .portrait {
+            return portraitCompatibilityResolution.dimensions(for: .portrait)
+        }
         return videoResolution.dimensions(for: orientation)
     }
 

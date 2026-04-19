@@ -13,6 +13,12 @@ final class H264VideoRendererView: UIView {
     private var sps: Data?
     private var pps: Data?
     private var frameIndex: Int64 = 0
+    private var notReadyStreak = 0
+    private let processQueue = DispatchQueue(label: "com.headunitpad.video.process", qos: .userInteractive)
+    private let frameQueueLock = NSLock()
+    private var pendingFrames: [Data] = []
+    private var isProcessingFrame = false
+    private let maxPendingFrames = 4
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -30,22 +36,72 @@ final class H264VideoRendererView: UIView {
     }
 
     func reset() {
-        frameIndex = 0
-        sps = nil
-        pps = nil
-        formatDescription = nil
-        displayLayer.flushAndRemoveImage()
+        frameQueueLock.lock()
+        pendingFrames.removeAll()
+        isProcessingFrame = false
+        frameQueueLock.unlock()
+
+        processQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.frameIndex = 0
+            self.sps = nil
+            self.pps = nil
+            self.formatDescription = nil
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.notReadyStreak = 0
+            self.displayLayer.flushAndRemoveImage()
+        }
     }
 
     func enqueueAnnexBFrame(_ frame: Data) {
-        if !Thread.isMainThread {
-            DispatchQueue.main.async { [weak self] in
-                self?.enqueueAnnexBFrame(frame)
+        guard !frame.isEmpty else { return }
+        enqueueFrameForProcessing(frame)
+    }
+
+    private func enqueueFrameForProcessing(_ frame: Data) {
+        frameQueueLock.lock()
+        if pendingFrames.count >= maxPendingFrames {
+            if let dropIndex = pendingFrames.firstIndex(where: { !containsIDRNal($0) }) {
+                pendingFrames.remove(at: dropIndex)
+            } else {
+                pendingFrames.removeFirst()
             }
+        }
+        pendingFrames.append(frame)
+
+        if isProcessingFrame {
+            frameQueueLock.unlock()
             return
         }
+        isProcessingFrame = true
+        frameQueueLock.unlock()
 
-        guard !frame.isEmpty else { return }
+        processQueue.async { [weak self] in
+            self?.processFrameLoop()
+        }
+    }
+
+    private func processFrameLoop() {
+        while true {
+            let nextFrame: Data?
+            frameQueueLock.lock()
+            if pendingFrames.isEmpty {
+                isProcessingFrame = false
+                frameQueueLock.unlock()
+                return
+            }
+            nextFrame = pendingFrames.removeFirst()
+            frameQueueLock.unlock()
+
+            guard let frame = nextFrame else { continue }
+            processSingleFrame(frame)
+        }
+    }
+
+    private func processSingleFrame(_ frame: Data) {
         let nalUnits = splitAnnexBNALUnits(frame)
         guard !nalUnits.isEmpty else { return }
 
@@ -69,12 +125,51 @@ final class H264VideoRendererView: UIView {
         guard !avccData.isEmpty else { return }
         guard let sampleBuffer = makeSampleBuffer(data: avccData, formatDescription: formatDescription) else { return }
 
-        if displayLayer.status == .failed {
-            displayLayer.flush()
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+
+            if self.displayLayer.status == .failed {
+                // Full reset helps recover from persistent AVSampleBufferDisplayLayer failures.
+                self.displayLayer.flushAndRemoveImage()
+                self.processQueue.async {
+                    self.formatDescription = nil
+                    self.frameIndex = 0
+                }
+                self.notReadyStreak = 0
+                return
+            }
+
+            guard self.displayLayer.isReadyForMoreMediaData else {
+                self.notReadyStreak += 1
+
+                if self.notReadyStreak == 30 {
+                    self.displayLayer.flush()
+                } else if self.notReadyStreak >= 90 {
+                    self.displayLayer.flushAndRemoveImage()
+                    self.processQueue.async {
+                        self.formatDescription = nil
+                        self.frameIndex = 0
+                    }
+                    self.notReadyStreak = 0
+                }
+                return
+            }
+
+            self.notReadyStreak = 0
+            self.displayLayer.enqueue(sampleBuffer)
         }
-        if displayLayer.isReadyForMoreMediaData {
-            displayLayer.enqueue(sampleBuffer)
+    }
+
+    private func containsIDRNal(_ frame: Data) -> Bool {
+        let nalUnits = splitAnnexBNALUnits(frame)
+        for nal in nalUnits {
+            guard let header = nal.first else { continue }
+            let nalType = header & 0x1F
+            if nalType == 5 {
+                return true
+            }
         }
+        return false
     }
 
     private func createFormatDescription(sps: Data, pps: Data) -> CMVideoFormatDescription? {

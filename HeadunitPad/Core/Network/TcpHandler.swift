@@ -163,8 +163,6 @@ class TcpHandler {
         connection.send(content: data, completion: .contentProcessed { error in
             if let error = error {
                 print("TcpHandler: send error: \(error)")
-            } else {
-                print("TcpHandler: send success, \(data.count) bytes")
             }
             completion?(error)
         })
@@ -179,12 +177,9 @@ class TcpHandler {
             guard let self = self else { return }
 
             if let data = data, !data.isEmpty {
-                print("TcpHandler: received \(data.count) bytes, hex=\(data.prefix(20).map { String(format: "%02x", $0) }.joined(separator: " "))")
-                DispatchQueue.main.async {
+                self.receiveQueue.async {
                     self.delegate?.tcpHandler(self, didReceiveData: data)
                 }
-            } else {
-                print("TcpHandler: received empty or nil data, isComplete=\(isComplete)")
             }
 
             if let error = error {

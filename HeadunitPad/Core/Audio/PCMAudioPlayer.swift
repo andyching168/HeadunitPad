@@ -10,9 +10,10 @@ final class PCMAudioPlayer {
     private let engine = AVAudioEngine()
     private var streams: [UInt8: Stream] = [:]
     private var sessionConfigured = false
+    private let audioQueue = DispatchQueue(label: "com.headunitpad.audio.player", qos: .userInitiated)
 
     func reset() {
-        DispatchQueue.main.async { [weak self] in
+        audioQueue.async { [weak self] in
             guard let self = self else { return }
             streams.values.forEach { $0.player.stop() }
             streams.removeAll()
@@ -24,7 +25,7 @@ final class PCMAudioPlayer {
 
     func playPCM(_ data: Data, on channel: UInt8) {
         guard !data.isEmpty else { return }
-        DispatchQueue.main.async { [weak self] in
+        audioQueue.async { [weak self] in
             guard let self = self, !data.isEmpty else { return }
             self.ensureSessionConfigured()
             guard let stream = self.ensureStream(for: channel) else { return }
@@ -41,7 +42,9 @@ final class PCMAudioPlayer {
         if !sessionConfigured {
             let session = AVAudioSession.sharedInstance()
             do {
-                try session.setCategory(.playback, mode: .default, options: [.mixWithOthers, .defaultToSpeaker])
+                // .defaultToSpeaker is only valid with .playAndRecord.
+                // For playback-only audio, keep a legal option set.
+                try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
                 try session.setActive(true)
             } catch {
                 print("PCMAudioPlayer: Failed to configure audio session: \(error)")

@@ -154,6 +154,11 @@ class ConnectionManager {
         guard state == .running else { return }
         aapTransport?.sendTouchEvent(pointers: pointers, action: action, actionIndex: actionIndex)
     }
+
+    func requestVideoRecovery() {
+        guard state == .running else { return }
+        aapTransport?.requestVideoRecovery()
+    }
 }
 
 extension ConnectionManager: DiscoveryDelegate {
