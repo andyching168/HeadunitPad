@@ -9,39 +9,39 @@ jobs:
     name: Build and Package IPA
     runs-on: macos-latest # 使用 GitHub 提供的 macOS 虛擬機
   steps:
-        - name:  取得程式碼 (Checkout)
-          uses: actions/checkout@v4
+    - name:  取得程式碼 (Checkout)
+      uses: actions/checkout@v4
 
-        - name:  設定 Xcode 版本 (可選)
-          uses: maxim-lobanov/setup-xcode@v1
-          with:
-            xcode-version: latest-stable
+    - name:  設定 Xcode 版本 (可選)
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
 
-        #  新增這一步驟來安裝 Pods
-        - name:  安裝 CocoaPods 依賴
-          run: pod install
+    #  新增這一步驟來安裝 Pods
+    - name:  安裝 CocoaPods 依賴
+      run: pod install
 
-        - name:  編譯專案 (無簽名模式)
-          run: |
-            #  這裡改用 -workspace 以及對應的 .xcworkspace 檔案
-            xcodebuild clean build \
-              -workspace "HeadunitPad.xcworkspace" \
-              -scheme "HeadunitPad" \
-              -configuration Release \
-              -sdk iphoneos \
-              -derivedDataPath build \
-              CODE_SIGN_IDENTITY="" \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO
+    - name:  編譯專案 (無簽名模式)
+      run: |
+        #  這裡改用 -workspace 以及對應的 .xcworkspace 檔案
+        xcodebuild clean build \
+          -workspace "HeadunitPad.xcworkspace" \
+          -scheme "HeadunitPad" \
+          -configuration Release \
+          -sdk iphoneos \
+          -derivedDataPath build \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
 
-        - name:  打包成 TrollStore 專用 IPA
-          run: |
-            mkdir Payload
-            cp -r build/Build/Products/Release-iphoneos/*.app Payload/
-            zip -r AppForTrollStore.ipa Payload
+    - name:  打包成 TrollStore 專用 IPA
+      run: |
+        mkdir Payload
+        cp -r build/Build/Products/Release-iphoneos/*.app Payload/
+        zip -r AppForTrollStore.ipa Payload
 
-        - name:  上傳 IPA 檔案供下載
-          uses: actions/upload-artifact@v4
-          with:
-            name: TrollStore-IPA
-            path: AppForTrollStore.ipa
+    - name:  上傳 IPA 檔案供下載
+      uses: actions/upload-artifact@v4
+      with:
+        name: TrollStore-IPA
+        path: AppForTrollStore.ipa
