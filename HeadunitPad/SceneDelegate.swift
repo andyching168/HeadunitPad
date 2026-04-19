@@ -14,8 +14,23 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene else { return }
 
+        let requestedActivityType = connectionOptions.userActivities.first?.activityType
+            ?? session.stateRestorationActivity?.activityType
+
+        let rootViewController: UIViewController
+        switch requestedActivityType {
+        case AppDelegate.videoOnlyWindowActivityType:
+            session.stateRestorationActivity = NSUserActivity(activityType: AppDelegate.videoOnlyWindowActivityType)
+            rootViewController = VideoOnlyViewController()
+        case AppDelegate.trackpadWindowActivityType:
+            session.stateRestorationActivity = NSUserActivity(activityType: AppDelegate.trackpadWindowActivityType)
+            rootViewController = TrackpadViewController()
+        default:
+            rootViewController = MainViewController()
+        }
+
         window = UIWindow(windowScene: windowScene)
-        window?.rootViewController = MainViewController()
+        window?.rootViewController = rootViewController
         window?.makeKeyAndVisible()
     }
 

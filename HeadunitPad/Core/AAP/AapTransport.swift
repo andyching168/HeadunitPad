@@ -358,7 +358,11 @@ class AapTransport {
     }
 
     func requestVideoRecovery() {
-        requestVideoRecoveryIfNeeded(reason: "external-watchdog")
+        requestVideoRecoveryIfNeeded(reason: "external-watchdog", ignoreRecentVideoGuard: false)
+    }
+
+    func requestVideoRecoveryForNewDisplay() {
+        requestVideoRecoveryIfNeeded(reason: "new-display", ignoreRecentVideoGuard: true)
     }
 
     func sendTouchEvent(x: Int, y: Int, action: TouchAction, pointerId: Int = 0) {
@@ -886,6 +890,10 @@ class AapTransport {
         case AapMessageType.AUDIO_FOCUS_REQUEST.rawValue:
             sendAudioFocusNotification(for: message, on: message.channel)
 
+        case AapMessageType.AUDIO_FOCUS_RESPONSE.rawValue:
+            // Host acknowledgement for previously sent focus notification.
+            break
+
         case AapMessageType.CAR_CONNECTED_DEVICES_REQUEST.rawValue:
             print("AapTransport: Car connected devices request received")
             sendCarConnectedDevicesResponse(on: message.channel, unsolicited: false)
@@ -999,6 +1007,7 @@ class AapTransport {
             payload: payload
         )
         send(message: message)
+        print("AapTransport: Audio focus requestType=\(requestType) -> focusState=\(focusState)")
     }
 
     private func sendSensorStartResponse(on channel: UInt8) {
@@ -1423,7 +1432,7 @@ private enum ProtoWire {
             print("AapTransport: Video assembly timeout \(nowMs - videoFirstFragmentAtMs)ms, dropping stale fragments")
             videoAssemblyBuffer.removeAll(keepingCapacity: true)
             videoFirstFragmentAtMs = 0
-            requestVideoRecoveryIfNeeded(reason: "assembly-timeout")
+            requestVideoRecoveryIfNeeded(reason: "assembly-timeout", ignoreRecentVideoGuard: false)
         }
 
         switch flags {
@@ -1438,20 +1447,20 @@ private enum ProtoWire {
                 videoAssemblyBuffer.append(payload.subdata(in: offset..<payload.count))
             } else {
                 print("AapTransport: First video fragment missing Annex-B start code")
-                requestVideoRecoveryIfNeeded(reason: "missing-start-code")
+                requestVideoRecoveryIfNeeded(reason: "missing-start-code", ignoreRecentVideoGuard: false)
             }
 
         case 0x08: // middle fragment
             if videoFirstFragmentAtMs == 0 {
                 print("AapTransport: Orphan middle video fragment received")
-                requestVideoRecoveryIfNeeded(reason: "orphan-middle-fragment")
+                requestVideoRecoveryIfNeeded(reason: "orphan-middle-fragment", ignoreRecentVideoGuard: false)
                 return
             }
             if videoAssemblyBuffer.count + payload.count > maxVideoAssemblyBytes {
                 print("AapTransport: Video assembly overflow on middle fragment, dropping")
                 videoAssemblyBuffer.removeAll(keepingCapacity: true)
                 videoFirstFragmentAtMs = 0
-                requestVideoRecoveryIfNeeded(reason: "assembly-overflow-middle")
+                requestVideoRecoveryIfNeeded(reason: "assembly-overflow-middle", ignoreRecentVideoGuard: false)
                 return
             }
             videoAssemblyBuffer.append(payload)
@@ -1461,7 +1470,7 @@ private enum ProtoWire {
                 print("AapTransport: Video assembly overflow on final fragment, dropping")
                 videoAssemblyBuffer.removeAll(keepingCapacity: true)
                 videoFirstFragmentAtMs = 0
-                requestVideoRecoveryIfNeeded(reason: "assembly-overflow-final")
+                requestVideoRecoveryIfNeeded(reason: "assembly-overflow-final", ignoreRecentVideoGuard: false)
                 return
             }
             videoFirstFragmentAtMs = 0
@@ -1581,12 +1590,17 @@ private enum ProtoWire {
         case 0x8002: // Media.MsgType.MEDIA_MESSAGE_STOP
             print("AapTransport: Microphone stop request received")
             delegate?.aapTransport(self, didRequestMicrophoneCapture: false)
+            sendAudioFocusGainUnsolicited()
 
         case 0x8005: // Media.MsgType.MEDIA_MESSAGE_MICROPHONE_REQUEST
             let openValue = ProtoWire.extractFirstVarint(from: message.payload, fieldNumber: 1) ?? 0
             let shouldOpen = openValue != 0
             print("AapTransport: Microphone request open=\(shouldOpen)")
             delegate?.aapTransport(self, didRequestMicrophoneCapture: shouldOpen)
+            if !shouldOpen {
+                // Assistant flow ended. Proactively restore media focus to unstick playback.
+                sendAudioFocusGainUnsolicited()
+            }
             sendMicrophoneResponse(on: message.channel, status: 0)
 
         case 0x8006: // Media.MsgType.MEDIA_MESSAGE_MICROPHONE_RESPONSE
@@ -1645,13 +1659,14 @@ private enum ProtoWire {
         }
     }
 
-    private func requestVideoRecoveryIfNeeded(reason: String) {
+    private func requestVideoRecoveryIfNeeded(reason: String, ignoreRecentVideoGuard: Bool) {
         guard state == .running || state == .binding || state == .authenticatingComplete else {
             return
         }
 
         let nowMs = uptimeMs()
-        if lastVideoPacketRxAtMs > 0,
+        if !ignoreRecentVideoGuard,
+           lastVideoPacketRxAtMs > 0,
            nowMs > lastVideoPacketRxAtMs,
            nowMs - lastVideoPacketRxAtMs < 4_000 {
             return

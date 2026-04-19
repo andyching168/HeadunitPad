@@ -159,6 +159,11 @@ class ConnectionManager {
         guard state == .running else { return }
         aapTransport?.requestVideoRecovery()
     }
+
+    func requestVideoRecoveryForNewDisplay() {
+        guard state == .running else { return }
+        aapTransport?.requestVideoRecoveryForNewDisplay()
+    }
 }
 
 extension ConnectionManager: DiscoveryDelegate {

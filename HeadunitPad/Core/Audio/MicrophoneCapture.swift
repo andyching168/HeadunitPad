@@ -1,6 +1,10 @@
 import Foundation
 import AVFoundation
 
+extension Notification.Name {
+    static let headunitMicrophoneCaptureStateChanged = Notification.Name("headunitMicrophoneCaptureStateChanged")
+}
+
 final class MicrophoneCapture {
     var onPCMData: ((Data) -> Void)?
 
@@ -40,12 +44,14 @@ final class MicrophoneCapture {
             engine.prepare()
             try engine.start()
             isCapturing = true
+            NotificationCenter.default.post(name: .headunitMicrophoneCaptureStateChanged, object: nil, userInfo: ["active": true])
             print("MicrophoneCapture: Started")
         } catch {
             print("MicrophoneCapture: Failed to start engine: \(error)")
             inputNode.removeTap(onBus: 0)
             self.converter = nil
             self.outputFormat = nil
+            NotificationCenter.default.post(name: .headunitMicrophoneCaptureStateChanged, object: nil, userInfo: ["active": false])
         }
     }
 
@@ -58,18 +64,40 @@ final class MicrophoneCapture {
         converter = nil
         outputFormat = nil
         isCapturing = false
+        NotificationCenter.default.post(name: .headunitMicrophoneCaptureStateChanged, object: nil, userInfo: ["active": false])
+        restorePlaybackAudioSession()
         print("MicrophoneCapture: Stopped")
     }
 
     private func configureAudioSession(sampleRate: Double, channels: AVAudioChannelCount) {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth])
+            // Keep current output route (BT/A2DP when available) and avoid forcing built-in speaker.
+            try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .allowBluetooth, .allowBluetoothA2DP])
             try session.setPreferredSampleRate(sampleRate)
             try session.setPreferredInputNumberOfChannels(Int(channels))
             try session.setActive(true)
         } catch {
             print("MicrophoneCapture: Failed to configure session: \(error)")
+        }
+    }
+
+    private func restorePlaybackAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+        } catch {
+            print("MicrophoneCapture: Failed to restore playback session: \(error)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                do {
+                    try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+                    try session.setActive(true)
+                    print("MicrophoneCapture: Restored playback session on retry")
+                } catch {
+                    print("MicrophoneCapture: Retry restore playback session failed: \(error)")
+                }
+            }
         }
     }
 

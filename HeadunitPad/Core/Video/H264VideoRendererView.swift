@@ -19,6 +19,7 @@ final class H264VideoRendererView: UIView {
     private var pendingFrames: [Data] = []
     private var isProcessingFrame = false
     private let maxPendingFrames = 4
+    private var hasDecodedKeyframe = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -47,6 +48,7 @@ final class H264VideoRendererView: UIView {
             self.sps = nil
             self.pps = nil
             self.formatDescription = nil
+            self.hasDecodedKeyframe = false
         }
 
         DispatchQueue.main.async { [weak self] in
@@ -105,6 +107,11 @@ final class H264VideoRendererView: UIView {
         let nalUnits = splitAnnexBNALUnits(frame)
         guard !nalUnits.isEmpty else { return }
 
+        let hasIDR = nalUnits.contains { nal in
+            guard let header = nal.first else { return false }
+            return (header & 0x1F) == 5
+        }
+
         for nal in nalUnits {
             guard let header = nal.first else { continue }
             let nalType = header & 0x1F
@@ -121,6 +128,12 @@ final class H264VideoRendererView: UIView {
 
         guard let formatDescription else { return }
 
+        // Drop predictive frames until first keyframe to avoid startup block artifacts.
+        if !hasDecodedKeyframe {
+            guard hasIDR else { return }
+            hasDecodedKeyframe = true
+        }
+
         let avccData = makeAVCCSample(from: nalUnits)
         guard !avccData.isEmpty else { return }
         guard let sampleBuffer = makeSampleBuffer(data: avccData, formatDescription: formatDescription) else { return }
@@ -134,6 +147,7 @@ final class H264VideoRendererView: UIView {
                 self.processQueue.async {
                     self.formatDescription = nil
                     self.frameIndex = 0
+                    self.hasDecodedKeyframe = false
                 }
                 self.notReadyStreak = 0
                 return
@@ -149,6 +163,7 @@ final class H264VideoRendererView: UIView {
                     self.processQueue.async {
                         self.formatDescription = nil
                         self.frameIndex = 0
+                        self.hasDecodedKeyframe = false
                     }
                     self.notReadyStreak = 0
                 }

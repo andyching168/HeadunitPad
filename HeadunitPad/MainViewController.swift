@@ -134,6 +134,9 @@ class MainViewController: UIViewController {
         setupUI()
         setupConstraints()
         connectionManager.delegate = self
+        TrackpadInputBridge.shared.setTouchSender { [weak self] pointers, action, actionIndex in
+            self?.connectionManager.sendTouchEvent(pointers: pointers, action: action, actionIndex: actionIndex)
+        }
         requestMicrophonePermissionIfNeeded()
         connectionManager.requestLocationPermissionIfNeeded()
         updateUIForConnectionState(.disconnected)
@@ -509,6 +512,12 @@ class MainViewController: UIViewController {
             alert.addAction(UIAlertAction(title: "Connection Details", style: .default) { [weak self] _ in
                 self?.presentConnectionDetails()
             })
+            alert.addAction(UIAlertAction(title: "Open Video-Only Window", style: .default) { [weak self] _ in
+                self?.openVideoOnlyWindow()
+            })
+            alert.addAction(UIAlertAction(title: "Open Trackpad Window", style: .default) { [weak self] _ in
+                self?.openTrackpadWindow()
+            })
             alert.addAction(UIAlertAction(title: "Disconnect", style: .destructive) { [weak self] _ in
                 self?.connectionManager.disconnect()
             })
@@ -665,6 +674,26 @@ class MainViewController: UIViewController {
         }
     }
 
+    private func openVideoOnlyWindow() {
+        let activity = NSUserActivity(activityType: AppDelegate.videoOnlyWindowActivityType)
+        activity.title = "HeadunitPad Video Only"
+        UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil) { error in
+            print("MainViewController: Failed to open video-only window: \(error)")
+        }
+        connectionManager.requestVideoRecoveryForNewDisplay()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            self?.connectionManager.requestVideoRecoveryForNewDisplay()
+        }
+    }
+
+    private func openTrackpadWindow() {
+        let activity = NSUserActivity(activityType: AppDelegate.trackpadWindowActivityType)
+        activity.title = "HeadunitPad Trackpad"
+        UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil) { error in
+            print("MainViewController: Failed to open trackpad window: \(error)")
+        }
+    }
+
     private func mapTouchPointToAa(_ point: CGPoint) -> (x: Int, y: Int) {
         let targetSize = ProjectionSettings.effectiveVideoDimensions
         let width = max(touchOverlayView.bounds.width, 1)
@@ -724,6 +753,7 @@ extension MainViewController: ConnectionManagerDelegate {
     }
 
     func connectionManager(_ manager: ConnectionManager, didReceiveVideoData data: Data) {
+        VideoFrameBus.shared.publish(frame: data)
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.hasReceivedFirstVideoFrame = true

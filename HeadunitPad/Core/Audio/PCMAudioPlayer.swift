@@ -11,6 +11,37 @@ final class PCMAudioPlayer {
     private var streams: [UInt8: Stream] = [:]
     private var sessionConfigured = false
     private let audioQueue = DispatchQueue(label: "com.headunitpad.audio.player", qos: .userInitiated)
+    private var isMicrophoneActive = false
+    private var microphoneStateObserver: NSObjectProtocol?
+
+    init() {
+        microphoneStateObserver = NotificationCenter.default.addObserver(
+            forName: .headunitMicrophoneCaptureStateChanged,
+            object: nil,
+            queue: nil
+        ) { [weak self] note in
+            let active = (note.userInfo?["active"] as? Bool) ?? false
+            self?.audioQueue.async {
+                guard let self = self else { return }
+                self.isMicrophoneActive = active
+                self.sessionConfigured = false
+
+                if !active {
+                    // Mic just closed: reset output graph so the next packet rebinds cleanly.
+                    self.streams.values.forEach { $0.player.stop() }
+                    self.streams.removeAll()
+                    self.engine.stop()
+                    self.engine.reset()
+                }
+            }
+        }
+    }
+
+    deinit {
+        if let microphoneStateObserver {
+            NotificationCenter.default.removeObserver(microphoneStateObserver)
+        }
+    }
 
     func reset() {
         audioQueue.async { [weak self] in
@@ -39,17 +70,33 @@ final class PCMAudioPlayer {
     }
 
     private func ensureSessionConfigured() {
-        if !sessionConfigured {
-            let session = AVAudioSession.sharedInstance()
+        let session = AVAudioSession.sharedInstance()
+
+        // When assistant/mic is active, the shared session may be in playAndRecord.
+        // Do not force a category switch here to avoid '!pri' conflicts.
+        if isMicrophoneActive || session.category == .playAndRecord {
             do {
-                // .defaultToSpeaker is only valid with .playAndRecord.
-                // For playback-only audio, keep a legal option set.
+                try session.setActive(true)
+                sessionConfigured = true
+            } catch {
+                print("PCMAudioPlayer: Failed to activate existing playAndRecord session: \(error)")
+            }
+            return
+        }
+
+        let needsConfigure = !sessionConfigured
+            || session.category != .playback
+            || session.mode != .default
+
+        if needsConfigure {
+            do {
+                // Re-apply playback policy if mic flow changed the global AVAudioSession.
                 try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
                 try session.setActive(true)
+                sessionConfigured = true
             } catch {
                 print("PCMAudioPlayer: Failed to configure audio session: \(error)")
             }
-            sessionConfigured = true
         }
     }
 
