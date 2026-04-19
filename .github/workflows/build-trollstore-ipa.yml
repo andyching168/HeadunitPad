@@ -1,3 +1,13 @@
+name: Build TrollStore IPA
+
+# 設定觸發條件：允許在 GitHub 網頁上手動點擊執行
+on:
+  workflow_dispatch: 
+
+jobs:
+  build:
+    name: Build and Package IPA
+    runs-on: macos-latest # 使用 GitHub 提供的 macOS 虛擬機
 steps:
       - name:  取得程式碼 (Checkout)
         uses: actions/checkout@v4
