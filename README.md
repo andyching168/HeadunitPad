@@ -62,9 +62,7 @@ The Android Auto Protocol (AAP) uses:
 TLS is encapsulated inside AAP messages (Channel 0, Type 3), not at the socket layer.
 
 ## Known Issues
-
-### Portrait Mode
-Portrait orientation mode does not currently work correctly. The video display and touch input mapping have issues in portrait mode. **Landscape mode is recommended for best results.**
+Well, You told me
 
 ## Requirements
 
